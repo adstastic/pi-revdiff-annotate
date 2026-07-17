@@ -1,0 +1,31 @@
+{
+  "name": "pi-revdiff-annotate",
+  "version": "0.1.0",
+  "description": "Annotate recent Pi assistant responses in revdiff and return comments to the conversation.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adstastic/pi-revdiff-annotate.git"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "revdiff",
+    "annotations",
+    "tui"
+  ],
+  "scripts": {
+    "test": "jiti tests/annotate.test.ts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "jiti": "^2.7.0"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/annotate.ts"
+    ]
+  }
+}

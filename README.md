@@ -1,6 +1,6 @@
 # pi-revdiff-annotate
 
-Annotate recent Pi assistant responses in [revdiff](https://github.com/umputun/revdiff), then return those comments to the conversation.
+Select a persisted Pi assistant message, annotate it in [revdiff](https://github.com/umputun/revdiff), then return those comments to the conversation.
 
 ## Install
 
@@ -21,16 +21,19 @@ Reload an open Pi session with `/reload`.
 ## Use
 
 ```text
-/annotate       # latest completed assistant response
-/annotate 3     # latest 3 completed assistant responses
+/annotate       # choose from latest 20 text-bearing assistant messages
+/annotate 50    # choose from latest 50 candidates
 ```
 
 The extension:
 
-1. Reads completed assistant messages from the active Pi session branch.
-2. Writes the selected messages, oldest first, into one temporary Markdown file.
-3. Suspends Pi while revdiff owns the terminal.
-4. Sends captured annotations back as the next user message, with the snapshot path and session entry IDs.
+1. Reads text-bearing assistant messages from the active Pi session branch, including commentary before tool calls.
+2. Shows newest candidates first in Pi's built-in selection list.
+3. Writes only the selected message's visible text into a temporary Markdown file.
+4. Suspends Pi while revdiff owns the terminal.
+5. Sends captured annotations back as the next user message, with the snapshot path and session entry ID.
+
+Migration: `N` now controls candidate-list depth; it previously selected and combined the latest `N` completed responses.
 
 Inside revdiff:
 

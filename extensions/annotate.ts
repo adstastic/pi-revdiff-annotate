@@ -6,44 +6,56 @@ import { join } from "node:path";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
-export interface AssistantTurn {
+export interface AssistantCandidate {
 	id: string;
-	role: "assistant";
 	text: string;
 	timestamp: string;
+	stopReason: string;
 }
 
 export function parseCount(raw: string): number | undefined {
 	const value = raw.trim();
-	if (!value) return 1;
+	if (!value) return 20;
 	if (!/^[1-9]\d*$/.test(value)) return undefined;
 	const count = Number(value);
 	return Number.isSafeInteger(count) ? count : undefined;
 }
 
-export function assistantTurns(entries: unknown[], count: number): AssistantTurn[] {
-	const turns: AssistantTurn[] = [];
+export function assistantCandidates(entries: unknown[], count: number): AssistantCandidate[] {
+	const candidates: AssistantCandidate[] = [];
 
 	for (const value of entries) {
-		if (!isRecord(value) || value.type !== "message" || !isRecord(value.message)) continue;
+		if (!isRecord(value) || value.type !== "message" || typeof value.id !== "string" || !isRecord(value.message)) {
+			continue;
+		}
 		const message = value.message;
-		if (message.role !== "assistant" || message.stopReason !== "stop") continue;
+		if (message.role !== "assistant") continue;
 
 		const text = textContent(message.content);
-		if (!text) continue;
+		if (!text.trim()) continue;
 
-		turns.push({
-			id: typeof value.id === "string" ? value.id : "unknown",
-			role: "assistant",
+		candidates.push({
+			id: value.id,
 			text,
 			timestamp: typeof value.timestamp === "string" ? value.timestamp : "unknown",
+			stopReason: typeof message.stopReason === "string" ? message.stopReason : "unknown",
 		});
 	}
 
-	return turns.slice(-count);
+	return candidates.slice(-count).reverse();
 }
 
-export function renderSnapshot(turns: AssistantTurn[]): string {
+export function candidateOption(candidate: AssistantCandidate): string {
+	const date = new Date(candidate.timestamp);
+	const time = Number.isNaN(date.getTime())
+		? "??:??"
+		: `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+	const firstLine = candidate.text.split(/\r?\n/).find((line) => line.trim())!.trim();
+	const preview = firstLine.length > 40 ? `${firstLine.slice(0, 39)}…` : firstLine;
+	return `${time}  ${preview.padEnd(40)}  [${candidate.stopReason}]  (${candidate.id})`;
+}
+
+export function renderSnapshot(turns: AssistantCandidate[]): string {
 	return turns
 		.map((turn, index) =>
 			[
@@ -57,7 +69,7 @@ export function renderSnapshot(turns: AssistantTurn[]): string {
 		.join("\n\n---\n\n");
 }
 
-export function feedbackPrompt(turns: AssistantTurn[], snapshotPath: string, annotations: string): string {
+export function feedbackPrompt(turns: AssistantCandidate[], snapshotPath: string, annotations: string): string {
 	const target =
 		turns.length === 1 ? "your previous assistant response" : `${turns.length} earlier assistant responses`;
 	return [
@@ -79,9 +91,9 @@ export default function annotateExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("annotate", {
-		description: "Annotate last N completed assistant responses in revdiff (default: 1)",
+		description: "Select an assistant message to annotate in revdiff (default depth: 20)",
 		getArgumentCompletions: (prefix) =>
-			["1", "2", "3", "5", "10"]
+			["1", "5", "10", "20", "50"]
 				.filter((value) => value.startsWith(prefix.trim()))
 				.map((value) => ({ value, label: value })),
 		handler: async (args, ctx) => {
@@ -92,15 +104,22 @@ export default function annotateExtension(pi: ExtensionAPI): void {
 
 			const count = parseCount(args);
 			if (!count) {
-				ctx.ui.notify("Usage: /annotate [positive message count]", "warning");
+				ctx.ui.notify("Usage: /annotate [positive candidate depth]", "warning");
 				return;
 			}
 
-			const turns = assistantTurns(ctx.sessionManager.getBranch(), count);
-			if (turns.length === 0) {
-				ctx.ui.notify("No assistant responses to annotate", "warning");
+			const candidates = assistantCandidates(ctx.sessionManager.getBranch(), count);
+			if (candidates.length === 0) {
+				ctx.ui.notify("No assistant messages to annotate", "warning");
 				return;
 			}
+
+			const options = new Map(candidates.map((candidate) => [candidateOption(candidate), candidate]));
+			const selectedOption = await ctx.ui.select("Select assistant message", [...options.keys()]);
+			if (!selectedOption) return;
+			const selected = options.get(selectedOption);
+			if (!selected) return;
+			const turns = [selected];
 
 			const dir = mkdtempSync(join(tmpdir(), "pi-annotate-"));
 			const snapshotPath = join(dir, "conversation.md");

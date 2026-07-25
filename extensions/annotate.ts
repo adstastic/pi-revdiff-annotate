@@ -139,7 +139,7 @@ export default function annotateExtension(pi: ExtensionAPI): void {
 			}
 
 			tempDirs.add(dir);
-			pi.sendUserMessage(feedbackPrompt(turns, snapshotPath, result.annotations));
+			pi.sendUserMessage(feedbackPrompt(turns, snapshotPath, result.annotations), { deliverAs: "followUp" });
 		},
 	});
 }
